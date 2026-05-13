@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>AI Word Predictor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body data-theme="dark">
+  <div class="container">
+
+    <!-- Header with Theme Toggle -->
+    <header class="header">
+      <h1>🤖 AI Word Predictor</h1>
+      <button id="theme-toggle" class="header-toggle" title="Toggle Theme">🌙</button>
+      <p class="subtitle">🧠 LSTM  ⚡ Attention Mechanisms  📝 NLP</p>
+    </header>
+
+    <!-- Text Editor -->
+    <div class="editor-container">
+      <div class="textarea-wrapper">
+        <textarea id="text-input"
+                  placeholder="Type your text here… AI will suggest the next word"
+                  rows="8"
+                  spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <!-- Suggestions (never collapses) -->
+    <div class="controls">
+      <div id="predictions-container" class="predictions-grid"></div>
+    </div>
+
+    <!-- Live Stats -->
+    <div class="stats-panel">
+      <div class="stat-item">
+        <span class="stat-label">Words</span>
+        <span id="stat-words" class="stat-value">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Suggestions</span>
+        <span id="stat-accepted" class="stat-value">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Accuracy</span>
+        <span id="stat-accuracy" class="stat-value">0%</span>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="button-container">
+      <button id="mic-btn"    class="icon-btn"  title="Voice input">🎙️</button>
+      <button id="save-btn"   class="action-btn">💾 Save TXT</button>
+      <button id="export-md"  class="icon-btn"  title="Export Markdown">📝</button>
+      <button id="export-pdf" class="icon-btn"  title="Export PDF">📄</button>
+    </div>
+
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
