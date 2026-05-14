@@ -2,11 +2,11 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 from flask import Flask, render_template, request, jsonify
-import keras
+import tensorflow as tf
 import numpy as np
 import pickle
 import re
-from keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 app = Flask(__name__)
 
@@ -16,7 +16,7 @@ sequence_len = 50
 
 # Load model and tokenizer with vocab limit
 try:
-    model = keras.models.load_model('next_word_lstm_model.h5')
+    model = tf.keras.models.load_model('next_word_lstm_model.h5')
     
     with open('tokenizer.pkl', 'rb') as handle:
         tokenizer = pickle.load(handle)
