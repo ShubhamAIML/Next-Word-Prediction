@@ -7,6 +7,8 @@ import numpy as np
 import pickle
 import re
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+import urllib.request
+import shutil
 
 app = Flask(__name__)
 
@@ -14,55 +16,77 @@ app = Flask(__name__)
 MAX_VOCAB_SIZE = 40000
 sequence_len = 50
 
+def download_file_from_github(github_path, local_path):
+    """Download file from GitHub if it doesn't exist locally."""
+    print(f"\n📥 Attempting to download {local_path} from GitHub...")
+    try:
+        # GitHub raw content URL
+        raw_url = f"https://raw.githubusercontent.com/ShubhamAIML/Next-Word-Prediction/main/{github_path}"
+        print(f"URL: {raw_url}")
+        
+        with urllib.request.urlopen(raw_url, timeout=30) as response:
+            with open(local_path, 'wb') as out_file:
+                shutil.copyfileobj(response, out_file)
+        
+        file_size = os.path.getsize(local_path)
+        print(f"✅ Downloaded {local_path} ({file_size / (1024*1024):.2f} MB)")
+        return True
+    except Exception as e:
+        print(f"❌ Download failed: {e}")
+        return False
+
+def check_and_fix_lfs_pointer(file_path):
+    """Check if file is a Git LFS pointer and download the real file if needed."""
+    if not os.path.exists(file_path):
+        return False
+    
+    try:
+        with open(file_path, 'r', errors='ignore') as f:
+            content = f.read(100)
+        
+        if 'version https://git-lfs.github.com/spec' in content:
+            print(f"⚠️  {file_path} is a Git LFS POINTER, downloading real file...")
+            os.remove(file_path)
+            return download_file_from_github(file_path, file_path)
+    except Exception as e:
+        print(f"Error checking LFS pointer: {e}")
+    
+    return True
+
 # Load model and tokenizer with vocab limit
 try:
     print("\n" + "="*60)
     print("🔄 LOADING MODEL AND TOKENIZER...")
     print("="*60)
     
-    import os
-    print(f"Current directory: {os.getcwd()}")
-    print(f"Files in current directory: {os.listdir('.')}")
-    
     model_path = 'next_word_lstm_model.h5'
     tokenizer_path = 'tokenizer.pkl'
     
-    print(f"\n📂 Checking model file: {model_path}")
-    if os.path.exists(model_path):
-        file_size = os.path.getsize(model_path)
-        print(f"✅ Model file exists! Size: {file_size / (1024*1024):.2f} MB")
-        
-        # Check if it's a Git LFS pointer
-        with open(model_path, 'r', errors='ignore') as f:
-            first_line = f.readline()
-            if 'version https://git-lfs.github.com/spec' in first_line:
-                print("❌ ERROR: File is a Git LFS POINTER, not actual data!")
-                print(f"   First line: {first_line}")
-            else:
-                print("✅ File is NOT a Git LFS pointer (good!)")
-    else:
-        print(f"❌ Model file NOT FOUND!")
+    # Check and fix LFS pointers
+    print(f"\n🔍 Checking {model_path}...")
+    if check_and_fix_lfs_pointer(model_path):
+        print(f"✅ {model_path} is ready")
     
-    print(f"\n📂 Checking tokenizer file: {tokenizer_path}")
-    if os.path.exists(tokenizer_path):
-        file_size = os.path.getsize(tokenizer_path)
-        print(f"✅ Tokenizer file exists! Size: {file_size / 1024:.2f} KB")
-        
-        with open(tokenizer_path, 'r', errors='ignore') as f:
-            first_line = f.readline()
-            if 'version https://git-lfs.github.com/spec' in first_line:
-                print("❌ ERROR: File is a Git LFS POINTER, not actual data!")
-                print(f"   First line: {first_line}")
-            else:
-                print("✅ File is NOT a Git LFS pointer (good!)")
-    else:
-        print(f"❌ Tokenizer file NOT FOUND!")
+    print(f"\n🔍 Checking {tokenizer_path}...")
+    if check_and_fix_lfs_pointer(tokenizer_path):
+        print(f"✅ {tokenizer_path} is ready")
     
-    print("\n🔄 Loading model...")
+    # If files still don't exist, download them
+    if not os.path.exists(model_path):
+        print(f"\n⚠️  {model_path} missing, downloading...")
+        download_file_from_github(model_path, model_path)
+    
+    if not os.path.exists(tokenizer_path):
+        print(f"\n⚠️  {tokenizer_path} missing, downloading...")
+        download_file_from_github(tokenizer_path, tokenizer_path)
+    
+    # Load model
+    print(f"\n📂 Loading model from: {os.path.abspath(model_path)}")
     model = tf.keras.models.load_model(model_path)
     print(f"✅ Model loaded! Input shape: {model.input_shape}")
     
-    print("\n🔄 Loading tokenizer...")
+    # Load tokenizer
+    print(f"\n📂 Loading tokenizer from: {os.path.abspath(tokenizer_path)}")
     with open(tokenizer_path, 'rb') as handle:
         tokenizer = pickle.load(handle)
     print(f"✅ Tokenizer loaded! Vocab size: {len(tokenizer.word_index)}")
