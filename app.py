@@ -129,61 +129,89 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
+    print("=" * 50)
+    print("🔍 PREDICT ENDPOINT CALLED")
+    print(f"Model loaded: {model is not None}")
+    print(f"Tokenizer loaded: {tokenizer is not None}")
+    
     if not model or not tokenizer:
-        return jsonify({'error': 'Model or tokenizer not loaded.'})
+        error_msg = 'Model or tokenizer not loaded.'
+        print(f"❌ ERROR: {error_msg}")
+        return jsonify({'error': error_msg})
 
     data = request.get_json()
     seed_text = data.get('text', '')
+    print(f"📝 Input text: '{seed_text}'")
 
     if not seed_text.strip():
+        print("⚠️ Empty input text")
         return jsonify({'predictions': []})
 
     try:
         # Clean and preprocess text
         cleaned_seed_text = clean_text(seed_text)
+        print(f"🧹 Cleaned text: '{cleaned_seed_text}'")
         
         if not cleaned_seed_text:
+            print("⚠️ Cleaned text is empty")
             return jsonify({'predictions': []})
         
         # Handle OOV words
         processed_text = handle_oov_words(cleaned_seed_text, tokenizer)
+        print(f"✅ Processed text: '{processed_text}'")
         
         if not processed_text:
+            print("⚠️ Processed text is empty after OOV handling")
             # Fallback to common words if all words are OOV
             common_words = ['the', 'and', 'to', 'of']
+            print(f"📌 Returning fallback: {common_words}")
             return jsonify({'predictions': common_words})
         
         # Convert to sequences
         encoded_sequence = tokenizer.texts_to_sequences([processed_text])[0]
+        print(f"🔢 Encoded sequence: {encoded_sequence[:20]}..." if len(encoded_sequence) > 20 else f"🔢 Encoded sequence: {encoded_sequence}")
         
         if not encoded_sequence:
+            print("⚠️ Encoded sequence is empty")
             return jsonify({'predictions': []})
         
         # Pad sequence
         padded_sequence = pad_sequences([encoded_sequence], maxlen=sequence_len, padding='pre')
+        print(f"📏 Padded sequence shape: {padded_sequence.shape}")
         
         # Get predictions
         y_pred_probs = model.predict(padded_sequence, verbose=0)[0]
+        print(f"🎯 Model output shape: {y_pred_probs.shape}")
+        print(f"🎯 Top 5 probs: {np.argsort(y_pred_probs)[-5:][::-1]} with values {np.sort(y_pred_probs)[-5:][::-1]}")
         
         # Get top predictions with enhanced filtering
         top_predictions = get_top_predictions(y_pred_probs, tokenizer, top_k=8)
+        print(f"✨ Top predictions: {top_predictions}")
         
         # Extract just the words for the response
         predictions = [pred['word'] for pred in top_predictions[:4]]
+        print(f"📤 Final predictions: {predictions}")
         
         # Ensure we have at least some predictions
         if not predictions:
             fallback_words = ['the', 'and', 'to', 'of', 'a', 'in', 'is', 'it']
             predictions = fallback_words[:4]
+            print(f"📌 Using fallback: {predictions}")
         
-        return jsonify({
+        result = {
             'predictions': predictions,
             'vocab_size': len(tokenizer.word_index),
             'processed_input_words': len(processed_text.split())
-        })
+        }
+        print(f"✅ Response: {result}")
+        print("=" * 50)
+        return jsonify(result)
         
     except Exception as e:
-        print(f"Prediction error: {e}")
+        print(f"❌ PREDICTION ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        print("=" * 50)
         return jsonify({'error': 'Could not process the prediction.'})
 
 @app.route('/vocab_stats')
