@@ -257,13 +257,60 @@ def test_word(word):
 @app.route('/health')
 def health():
     """Health check endpoint."""
-    return jsonify({
+    print("\n📋 HEALTH CHECK CALLED")
+    health_data = {
         'status': 'healthy',
         'model_loaded': model is not None,
         'tokenizer_loaded': tokenizer is not None,
         'vocabulary_size': len(tokenizer.word_index) if tokenizer else 0,
         'max_vocab_limit': MAX_VOCAB_SIZE
-    })
+    }
+    print(f"Health data: {health_data}\n")
+    return jsonify(health_data)
+
+@app.route('/debug_predict')
+def debug_predict():
+    """Test prediction with hardcoded text."""
+    print("\n🧪 DEBUG PREDICT CALLED (no input needed)")
+    
+    if not model or not tokenizer:
+        return jsonify({'error': 'Model or tokenizer not loaded'})
+    
+    # Use a simple test sentence
+    test_text = "the quick brown"
+    print(f"Using test text: '{test_text}'")
+    
+    try:
+        cleaned_text = clean_text(test_text)
+        processed_text = handle_oov_words(cleaned_text, tokenizer)
+        print(f"Processed: '{processed_text}'")
+        
+        encoded = tokenizer.texts_to_sequences([processed_text])[0]
+        print(f"Encoded: {encoded}")
+        
+        padded = pad_sequences([encoded], maxlen=sequence_len, padding='pre')
+        print(f"Padded shape: {padded.shape}")
+        
+        probs = model.predict(padded, verbose=0)[0]
+        print(f"Predictions shape: {probs.shape}")
+        print(f"Top 5 indices: {np.argsort(probs)[-5:][::-1]}")
+        print(f"Top 5 probs: {np.sort(probs)[-5:][::-1]}")
+        
+        top_words = []
+        for idx in np.argsort(probs)[-5:][::-1]:
+            if idx in tokenizer.index_word:
+                word = tokenizer.index_word[idx]
+                prob = float(probs[idx])
+                top_words.append({'word': word, 'prob': prob})
+                print(f"  - {word}: {prob:.4f}")
+        
+        return jsonify({'test_predictions': top_words})
+    except Exception as e:
+        print(f"ERROR in debug_predict: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)})
+
 
 if __name__ == '__main__':
     # Print startup info
