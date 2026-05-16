@@ -16,17 +16,63 @@ sequence_len = 50
 
 # Load model and tokenizer with vocab limit
 try:
-    model = tf.keras.models.load_model('next_word_lstm_model.h5')
+    print("\n" + "="*60)
+    print("🔄 LOADING MODEL AND TOKENIZER...")
+    print("="*60)
     
-    with open('tokenizer.pkl', 'rb') as handle:
+    import os
+    print(f"Current directory: {os.getcwd()}")
+    print(f"Files in current directory: {os.listdir('.')}")
+    
+    model_path = 'next_word_lstm_model.h5'
+    tokenizer_path = 'tokenizer.pkl'
+    
+    print(f"\n📂 Checking model file: {model_path}")
+    if os.path.exists(model_path):
+        file_size = os.path.getsize(model_path)
+        print(f"✅ Model file exists! Size: {file_size / (1024*1024):.2f} MB")
+        
+        # Check if it's a Git LFS pointer
+        with open(model_path, 'r', errors='ignore') as f:
+            first_line = f.readline()
+            if 'version https://git-lfs.github.com/spec' in first_line:
+                print("❌ ERROR: File is a Git LFS POINTER, not actual data!")
+                print(f"   First line: {first_line}")
+            else:
+                print("✅ File is NOT a Git LFS pointer (good!)")
+    else:
+        print(f"❌ Model file NOT FOUND!")
+    
+    print(f"\n📂 Checking tokenizer file: {tokenizer_path}")
+    if os.path.exists(tokenizer_path):
+        file_size = os.path.getsize(tokenizer_path)
+        print(f"✅ Tokenizer file exists! Size: {file_size / 1024:.2f} KB")
+        
+        with open(tokenizer_path, 'r', errors='ignore') as f:
+            first_line = f.readline()
+            if 'version https://git-lfs.github.com/spec' in first_line:
+                print("❌ ERROR: File is a Git LFS POINTER, not actual data!")
+                print(f"   First line: {first_line}")
+            else:
+                print("✅ File is NOT a Git LFS pointer (good!)")
+    else:
+        print(f"❌ Tokenizer file NOT FOUND!")
+    
+    print("\n🔄 Loading model...")
+    model = tf.keras.models.load_model(model_path)
+    print(f"✅ Model loaded! Input shape: {model.input_shape}")
+    
+    print("\n🔄 Loading tokenizer...")
+    with open(tokenizer_path, 'rb') as handle:
         tokenizer = pickle.load(handle)
+    print(f"✅ Tokenizer loaded! Vocab size: {len(tokenizer.word_index)}")
     
     # Limit vocabulary to top 40K most frequent words
     original_vocab_size = len(tokenizer.word_index)
     
     if original_vocab_size > MAX_VOCAB_SIZE:
-        print(f"Original vocabulary: {original_vocab_size} words")
-        print(f"Limiting to top {MAX_VOCAB_SIZE} most frequent words...")
+        print(f"\n📊 Original vocabulary: {original_vocab_size} words")
+        print(f"📊 Limiting to top {MAX_VOCAB_SIZE} most frequent words...")
         
         # Get word frequencies (assuming word_index is sorted by frequency)
         limited_word_index = {}
@@ -41,14 +87,18 @@ try:
         tokenizer.word_index = limited_word_index
         tokenizer.index_word = limited_index_word
         
-        print(f"Vocabulary limited to {len(tokenizer.word_index)} words")
+        print(f"📊 Vocabulary limited to {len(tokenizer.word_index)} words")
     
-    print(f"Model and tokenizer loaded successfully!")
-    print(f"Final vocabulary size: {len(tokenizer.word_index)} words")
-    print(f"Model input shape: {model.input_shape}")
+    print(f"\n✅✅✅ SUCCESS! Model and tokenizer loaded!")
+    print(f"     Model shape: {model.input_shape}")
+    print(f"     Vocab size: {len(tokenizer.word_index)} words")
+    print("="*60 + "\n")
     
 except Exception as e:
-    print(f"Error loading model or tokenizer: {e}")
+    print(f"\n❌❌❌ ERROR LOADING MODEL/TOKENIZER: {e}")
+    import traceback
+    traceback.print_exc()
+    print("="*60 + "\n")
     model = None
     tokenizer = None
 
