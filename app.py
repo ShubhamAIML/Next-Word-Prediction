@@ -17,14 +17,15 @@ MAX_VOCAB_SIZE = 40000
 sequence_len = 50
 
 def download_file_from_github(github_path, local_path):
-    """Download file from GitHub if it doesn't exist locally."""
+    """Download file from GitHub using API (handles Git LFS)."""
     print(f"\n📥 Attempting to download {local_path} from GitHub...")
     try:
-        # GitHub raw content URL
-        raw_url = f"https://raw.githubusercontent.com/ShubhamAIML/Next-Word-Prediction/main/{github_path}"
+        # Use GitHub's API for file download (returns LFS pointer content)
+        # For LFS files, we need to use the raw GitHub content URL
+        raw_url = f"https://github.com/ShubhamAIML/Next-Word-Prediction/raw/main/{github_path}"
         print(f"URL: {raw_url}")
         
-        with urllib.request.urlopen(raw_url, timeout=30) as response:
+        with urllib.request.urlopen(raw_url, timeout=60) as response:
             with open(local_path, 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
         
@@ -32,7 +33,7 @@ def download_file_from_github(github_path, local_path):
         print(f"✅ Downloaded {local_path} ({file_size / (1024*1024):.2f} MB)")
         return True
     except Exception as e:
-        print(f"❌ Download failed: {e}")
+        print(f"❌ Download from GitHub failed: {e}")
         return False
 
 def check_and_fix_lfs_pointer(file_path):
