@@ -7,9 +7,6 @@ import numpy as np
 import pickle
 import re
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-import urllib.request
-import shutil
-import json
 
 app = Flask(__name__)
 
@@ -17,131 +14,22 @@ app = Flask(__name__)
 MAX_VOCAB_SIZE = 40000
 sequence_len = 50
 
-def is_lfs_pointer(file_path):
-    """Check if a file is a Git LFS pointer."""
-    try:
-        with open(file_path, 'rb') as f:
-            content = f.read(100)
-        return b'version https://git-lfs.github.com/spec' in content
-    except:
-        return False
-
-def download_from_huggingface(repo_id, filename, local_path):
-    """Download file from HuggingFace Hub."""
-    print(f"\n📥 Downloading from HuggingFace Hub...")
-    try:
-        # Use HuggingFace API
-        url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
-        print(f"URL: {url}")
-        
-        with urllib.request.urlopen(url, timeout=120) as response:
-            with open(local_path, 'wb') as out_file:
-                # Show download progress
-                total_size = int(response.headers.get('content-length', 0))
-                downloaded = 0
-                chunk_size = 1024 * 1024  # 1MB chunks
-                
-                while True:
-                    chunk = response.read(chunk_size)
-                    if not chunk:
-                        break
-                    out_file.write(chunk)
-                    downloaded += len(chunk)
-                    if total_size:
-                        progress = (downloaded / total_size) * 100
-                        print(f"  [{progress:.1f}%] {downloaded / (1024*1024):.1f} MB", end='\r')
-        
-        file_size = os.path.getsize(local_path)
-        print(f"\n✅ Downloaded {filename} ({file_size / (1024*1024):.2f} MB)")
-        return True
-    except Exception as e:
-        print(f"❌ HuggingFace download failed: {e}")
-        return False
-
-def ensure_model_files():
-    """Ensure model files exist and are not LFS pointers."""
-    model_path = 'next_word_lstm_model.h5'
-    tokenizer_path = 'tokenizer.pkl'
-    
-    print("\n" + "="*70)
-    print("🔄 CHECKING MODEL FILES...")
-    print("="*70)
-    
-    # Check model file
-    print(f"\n📂 Checking {model_path}...")
-    if os.path.exists(model_path):
-        size = os.path.getsize(model_path)
-        print(f"   File exists: {size / (1024*1024):.2f} MB")
-        
-        if is_lfs_pointer(model_path):
-            print(f"   ⚠️  Is LFS pointer - trying to download actual file...")
-            os.remove(model_path)
-            # Try HuggingFace
-            if not download_from_huggingface('ShubhamAIML/Next-Word-Prediction', model_path, model_path):
-                print(f"   ⚠️  HuggingFace download failed, will use LFS pointer")
-                # Restore from git
-                os.system('git restore next_word_lstm_model.h5 2>/dev/null || true')
-        else:
-            print(f"   ✅ Is actual file (not LFS pointer)")
-    else:
-        print(f"   ❌ File missing - trying HuggingFace...")
-        if not download_from_huggingface('ShubhamAIML/Next-Word-Prediction', model_path, model_path):
-            print(f"   ⚠️  Download failed - will try local git version")
-            os.system('git restore next_word_lstm_model.h5 2>/dev/null || true')
-    
-    # Check tokenizer file
-    print(f"\n📂 Checking {tokenizer_path}...")
-    if os.path.exists(tokenizer_path):
-        size = os.path.getsize(tokenizer_path)
-        print(f"   File exists: {size / 1024:.2f} KB")
-        
-        if is_lfs_pointer(tokenizer_path):
-            print(f"   ⚠️  Is LFS pointer - trying to download actual file...")
-            os.remove(tokenizer_path)
-            # Try HuggingFace
-            if not download_from_huggingface('ShubhamAIML/Next-Word-Prediction', tokenizer_path, tokenizer_path):
-                print(f"   ⚠️  HuggingFace download failed, will use LFS pointer")
-                # Restore from git
-                os.system('git restore tokenizer.pkl 2>/dev/null || true')
-        else:
-            print(f"   ✅ Is actual file (not LFS pointer)")
-    else:
-        print(f"   ❌ File missing - trying HuggingFace...")
-        if not download_from_huggingface('ShubhamAIML/Next-Word-Prediction', tokenizer_path, tokenizer_path):
-            print(f"   ⚠️  Download failed - will try local git version")
-            os.system('git restore tokenizer.pkl 2>/dev/null || true')
-    
-    print("\n" + "="*70)
+# Get port from environment variable (Render requirement)
+port = int(os.environ.get('PORT', 5000))
 
 # Load model and tokenizer with vocab limit
 try:
-    print("\n" + "="*70)
-    print("🔄 LOADING MODEL AND TOKENIZER...")
-    print("="*70)
+    model = tf.keras.models.load_model('next_word_lstm_model.h5')
     
-    # Ensure files exist and are not LFS pointers
-    ensure_model_files()
-    
-    model_path = 'next_word_lstm_model.h5'
-    tokenizer_path = 'tokenizer.pkl'
-    
-    # Load model
-    print(f"\n📂 Loading model from: {os.path.abspath(model_path)}")
-    model = tf.keras.models.load_model(model_path)
-    print(f"✅ Model loaded! Input shape: {model.input_shape}")
-    
-    # Load tokenizer
-    print(f"\n📂 Loading tokenizer from: {os.path.abspath(tokenizer_path)}")
-    with open(tokenizer_path, 'rb') as handle:
+    with open('tokenizer.pkl', 'rb') as handle:
         tokenizer = pickle.load(handle)
-    print(f"✅ Tokenizer loaded! Vocab size: {len(tokenizer.word_index)}")
     
     # Limit vocabulary to top 40K most frequent words
     original_vocab_size = len(tokenizer.word_index)
     
     if original_vocab_size > MAX_VOCAB_SIZE:
-        print(f"\n📊 Original vocabulary: {original_vocab_size} words")
-        print(f"📊 Limiting to top {MAX_VOCAB_SIZE} most frequent words...")
+        print(f"Original vocabulary: {original_vocab_size} words")
+        print(f"Limiting to top {MAX_VOCAB_SIZE} most frequent words...")
         
         # Get word frequencies (assuming word_index is sorted by frequency)
         limited_word_index = {}
@@ -156,18 +44,14 @@ try:
         tokenizer.word_index = limited_word_index
         tokenizer.index_word = limited_index_word
         
-        print(f"📊 Vocabulary limited to {len(tokenizer.word_index)} words")
+        print(f"Vocabulary limited to {len(tokenizer.word_index)} words")
     
-    print(f"\n✅✅✅ SUCCESS! Model and tokenizer loaded!")
-    print(f"     Model shape: {model.input_shape}")
-    print(f"     Vocab size: {len(tokenizer.word_index)} words")
-    print("="*70 + "\n")
+    print(f"Model and tokenizer loaded successfully!")
+    print(f"Final vocabulary size: {len(tokenizer.word_index)} words")
+    print(f"Model input shape: {model.input_shape}")
     
 except Exception as e:
-    print(f"\n❌❌❌ ERROR LOADING MODEL/TOKENIZER: {e}")
-    import traceback
-    traceback.print_exc()
-    print("="*70 + "\n")
+    print(f"Error loading model or tokenizer: {e}")
     model = None
     tokenizer = None
 
@@ -248,89 +132,61 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    print("=" * 50)
-    print("🔍 PREDICT ENDPOINT CALLED")
-    print(f"Model loaded: {model is not None}")
-    print(f"Tokenizer loaded: {tokenizer is not None}")
-    
     if not model or not tokenizer:
-        error_msg = 'Model or tokenizer not loaded.'
-        print(f"❌ ERROR: {error_msg}")
-        return jsonify({'error': error_msg})
+        return jsonify({'error': 'Model or tokenizer not loaded.'})
 
     data = request.get_json()
     seed_text = data.get('text', '')
-    print(f"📝 Input text: '{seed_text}'")
 
     if not seed_text.strip():
-        print("⚠️ Empty input text")
         return jsonify({'predictions': []})
 
     try:
         # Clean and preprocess text
         cleaned_seed_text = clean_text(seed_text)
-        print(f"🧹 Cleaned text: '{cleaned_seed_text}'")
         
         if not cleaned_seed_text:
-            print("⚠️ Cleaned text is empty")
             return jsonify({'predictions': []})
         
         # Handle OOV words
         processed_text = handle_oov_words(cleaned_seed_text, tokenizer)
-        print(f"✅ Processed text: '{processed_text}'")
         
         if not processed_text:
-            print("⚠️ Processed text is empty after OOV handling")
             # Fallback to common words if all words are OOV
             common_words = ['the', 'and', 'to', 'of']
-            print(f"📌 Returning fallback: {common_words}")
             return jsonify({'predictions': common_words})
         
         # Convert to sequences
         encoded_sequence = tokenizer.texts_to_sequences([processed_text])[0]
-        print(f"🔢 Encoded sequence: {encoded_sequence[:20]}..." if len(encoded_sequence) > 20 else f"🔢 Encoded sequence: {encoded_sequence}")
         
         if not encoded_sequence:
-            print("⚠️ Encoded sequence is empty")
             return jsonify({'predictions': []})
         
         # Pad sequence
         padded_sequence = pad_sequences([encoded_sequence], maxlen=sequence_len, padding='pre')
-        print(f"📏 Padded sequence shape: {padded_sequence.shape}")
         
         # Get predictions
         y_pred_probs = model.predict(padded_sequence, verbose=0)[0]
-        print(f"🎯 Model output shape: {y_pred_probs.shape}")
-        print(f"🎯 Top 5 probs: {np.argsort(y_pred_probs)[-5:][::-1]} with values {np.sort(y_pred_probs)[-5:][::-1]}")
         
         # Get top predictions with enhanced filtering
         top_predictions = get_top_predictions(y_pred_probs, tokenizer, top_k=8)
-        print(f"✨ Top predictions: {top_predictions}")
         
         # Extract just the words for the response
         predictions = [pred['word'] for pred in top_predictions[:4]]
-        print(f"📤 Final predictions: {predictions}")
         
         # Ensure we have at least some predictions
         if not predictions:
             fallback_words = ['the', 'and', 'to', 'of', 'a', 'in', 'is', 'it']
             predictions = fallback_words[:4]
-            print(f"📌 Using fallback: {predictions}")
         
-        result = {
+        return jsonify({
             'predictions': predictions,
             'vocab_size': len(tokenizer.word_index),
             'processed_input_words': len(processed_text.split())
-        }
-        print(f"✅ Response: {result}")
-        print("=" * 50)
-        return jsonify(result)
+        })
         
     except Exception as e:
-        print(f"❌ PREDICTION ERROR: {e}")
-        import traceback
-        traceback.print_exc()
-        print("=" * 50)
+        print(f"Prediction error: {e}")
         return jsonify({'error': 'Could not process the prediction.'})
 
 @app.route('/vocab_stats')
@@ -376,60 +232,13 @@ def test_word(word):
 @app.route('/health')
 def health():
     """Health check endpoint."""
-    print("\n📋 HEALTH CHECK CALLED")
-    health_data = {
+    return jsonify({
         'status': 'healthy',
         'model_loaded': model is not None,
         'tokenizer_loaded': tokenizer is not None,
         'vocabulary_size': len(tokenizer.word_index) if tokenizer else 0,
         'max_vocab_limit': MAX_VOCAB_SIZE
-    }
-    print(f"Health data: {health_data}\n")
-    return jsonify(health_data)
-
-@app.route('/debug_predict')
-def debug_predict():
-    """Test prediction with hardcoded text."""
-    print("\n🧪 DEBUG PREDICT CALLED (no input needed)")
-    
-    if not model or not tokenizer:
-        return jsonify({'error': 'Model or tokenizer not loaded'})
-    
-    # Use a simple test sentence
-    test_text = "the quick brown"
-    print(f"Using test text: '{test_text}'")
-    
-    try:
-        cleaned_text = clean_text(test_text)
-        processed_text = handle_oov_words(cleaned_text, tokenizer)
-        print(f"Processed: '{processed_text}'")
-        
-        encoded = tokenizer.texts_to_sequences([processed_text])[0]
-        print(f"Encoded: {encoded}")
-        
-        padded = pad_sequences([encoded], maxlen=sequence_len, padding='pre')
-        print(f"Padded shape: {padded.shape}")
-        
-        probs = model.predict(padded, verbose=0)[0]
-        print(f"Predictions shape: {probs.shape}")
-        print(f"Top 5 indices: {np.argsort(probs)[-5:][::-1]}")
-        print(f"Top 5 probs: {np.sort(probs)[-5:][::-1]}")
-        
-        top_words = []
-        for idx in np.argsort(probs)[-5:][::-1]:
-            if idx in tokenizer.index_word:
-                word = tokenizer.index_word[idx]
-                prob = float(probs[idx])
-                top_words.append({'word': word, 'prob': prob})
-                print(f"  - {word}: {prob:.4f}")
-        
-        return jsonify({'test_predictions': top_words})
-    except Exception as e:
-        print(f"ERROR in debug_predict: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)})
-
+    })
 
 if __name__ == '__main__':
     # Print startup info
@@ -438,8 +247,8 @@ if __name__ == '__main__':
         print(f"📚 Vocabulary Size: {len(tokenizer.word_index):,} words")
         print(f"🎯 Maximum Vocabulary Limit: {MAX_VOCAB_SIZE:,} words")
         print(f"🔢 Sequence Length: {sequence_len}")
-        print(f"✅ Server ready at http://localhost:5000")
-        print(f"📊 Vocab stats: http://localhost:5000/vocab_stats")
-        print(f"❤️ Health check: http://localhost:5000/health\n")
+        print(f"✅ Server ready at http://localhost:{port}")
+        print(f"📊 Vocab stats: http://localhost:{port}/vocab_stats")
+        print(f"❤️ Health check: http://localhost:{port}/health\n")
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=port)
