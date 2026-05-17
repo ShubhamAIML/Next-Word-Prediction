@@ -16,7 +16,7 @@ COPY Dataset/ Dataset/
 # Install Python dependencies
 RUN pip install --no-cache-dir \
     Flask==3.0.0 \
-    tensorflow==2.15.0 \
+    tensorflow==2.14.0 \
     numpy==1.24.3 \
     gunicorn==21.2.0
 
