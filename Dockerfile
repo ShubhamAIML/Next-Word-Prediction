@@ -12,5 +12,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Run the app
-CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "--workers", "1", "app:app"]
+# Run the app with proper PORT handling
+CMD gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 1 app:app
