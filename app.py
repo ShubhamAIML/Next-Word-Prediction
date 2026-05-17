@@ -9,6 +9,7 @@ import re
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 import urllib.request
 import shutil
+import json
 
 app = Flask(__name__)
 
@@ -16,70 +17,101 @@ app = Flask(__name__)
 MAX_VOCAB_SIZE = 40000
 sequence_len = 50
 
-def download_file_from_github(github_path, local_path):
-    """Download file from GitHub using API (handles Git LFS)."""
-    print(f"\n📥 Attempting to download {local_path} from GitHub...")
+def is_lfs_pointer(file_path):
+    """Check if a file is a Git LFS pointer."""
     try:
-        # Use GitHub's API for file download (returns LFS pointer content)
-        # For LFS files, we need to use the raw GitHub content URL
-        raw_url = f"https://github.com/ShubhamAIML/Next-Word-Prediction/raw/main/{github_path}"
-        print(f"URL: {raw_url}")
+        with open(file_path, 'rb') as f:
+            content = f.read(100)
+        return b'version https://git-lfs.github.com/spec' in content
+    except:
+        return False
+
+def download_from_huggingface(repo_id, filename, local_path):
+    """Download file from HuggingFace Hub."""
+    print(f"\n📥 Downloading from HuggingFace Hub...")
+    try:
+        # Use HuggingFace API
+        url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
+        print(f"URL: {url}")
         
-        with urllib.request.urlopen(raw_url, timeout=60) as response:
+        with urllib.request.urlopen(url, timeout=120) as response:
             with open(local_path, 'wb') as out_file:
-                shutil.copyfileobj(response, out_file)
+                # Show download progress
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded = 0
+                chunk_size = 1024 * 1024  # 1MB chunks
+                
+                while True:
+                    chunk = response.read(chunk_size)
+                    if not chunk:
+                        break
+                    out_file.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size:
+                        progress = (downloaded / total_size) * 100
+                        print(f"  [{progress:.1f}%] {downloaded / (1024*1024):.1f} MB", end='\r')
         
         file_size = os.path.getsize(local_path)
-        print(f"✅ Downloaded {local_path} ({file_size / (1024*1024):.2f} MB)")
+        print(f"\n✅ Downloaded {filename} ({file_size / (1024*1024):.2f} MB)")
         return True
     except Exception as e:
-        print(f"❌ Download from GitHub failed: {e}")
+        print(f"❌ HuggingFace download failed: {e}")
         return False
 
-def check_and_fix_lfs_pointer(file_path):
-    """Check if file is a Git LFS pointer and download the real file if needed."""
-    if not os.path.exists(file_path):
-        return False
-    
-    try:
-        with open(file_path, 'r', errors='ignore') as f:
-            content = f.read(100)
-        
-        if 'version https://git-lfs.github.com/spec' in content:
-            print(f"⚠️  {file_path} is a Git LFS POINTER, downloading real file...")
-            os.remove(file_path)
-            return download_file_from_github(file_path, file_path)
-    except Exception as e:
-        print(f"Error checking LFS pointer: {e}")
-    
-    return True
-
-# Load model and tokenizer with vocab limit
-try:
-    print("\n" + "="*60)
-    print("🔄 LOADING MODEL AND TOKENIZER...")
-    print("="*60)
-    
+def ensure_model_files():
+    """Ensure model files exist and are not LFS pointers."""
     model_path = 'next_word_lstm_model.h5'
     tokenizer_path = 'tokenizer.pkl'
     
-    # Check and fix LFS pointers
-    print(f"\n🔍 Checking {model_path}...")
-    if check_and_fix_lfs_pointer(model_path):
-        print(f"✅ {model_path} is ready")
+    print("\n" + "="*70)
+    print("🔄 CHECKING MODEL FILES...")
+    print("="*70)
     
-    print(f"\n🔍 Checking {tokenizer_path}...")
-    if check_and_fix_lfs_pointer(tokenizer_path):
-        print(f"✅ {tokenizer_path} is ready")
+    # Check model file
+    print(f"\n📂 Checking {model_path}...")
+    if os.path.exists(model_path):
+        size = os.path.getsize(model_path)
+        print(f"   File exists: {size / (1024*1024):.2f} MB")
+        
+        if is_lfs_pointer(model_path):
+            print(f"   ⚠️  Is LFS pointer - downloading actual file...")
+            os.remove(model_path)
+            download_from_huggingface('ShubhamAIML/Next-Word-Prediction', model_path, model_path)
+        else:
+            print(f"   ✅ Is actual file (not LFS pointer)")
+    else:
+        print(f"   ❌ File missing - downloading...")
+        download_from_huggingface('ShubhamAIML/Next-Word-Prediction', model_path, model_path)
     
-    # If files still don't exist, download them
-    if not os.path.exists(model_path):
-        print(f"\n⚠️  {model_path} missing, downloading...")
-        download_file_from_github(model_path, model_path)
+    # Check tokenizer file
+    print(f"\n📂 Checking {tokenizer_path}...")
+    if os.path.exists(tokenizer_path):
+        size = os.path.getsize(tokenizer_path)
+        print(f"   File exists: {size / 1024:.2f} KB")
+        
+        if is_lfs_pointer(tokenizer_path):
+            print(f"   ⚠️  Is LFS pointer - downloading actual file...")
+            os.remove(tokenizer_path)
+            download_from_huggingface('ShubhamAIML/Next-Word-Prediction', tokenizer_path, tokenizer_path)
+        else:
+            print(f"   ✅ Is actual file (not LFS pointer)")
+    else:
+        print(f"   ❌ File missing - downloading...")
+        download_from_huggingface('ShubhamAIML/Next-Word-Prediction', tokenizer_path, tokenizer_path)
     
-    if not os.path.exists(tokenizer_path):
-        print(f"\n⚠️  {tokenizer_path} missing, downloading...")
-        download_file_from_github(tokenizer_path, tokenizer_path)
+    print("\n" + "="*70)
+
+# Load model and tokenizer with vocab limit
+try:
+    print("\n" + "="*70)
+    print("🔄 LOADING MODEL AND TOKENIZER...")
+    print("="*70)
+    
+    # Ensure files exist and are not LFS pointers
+    ensure_model_files()
+    
+    model_path = 'next_word_lstm_model.h5'
+    tokenizer_path = 'tokenizer.pkl'
     
     # Load model
     print(f"\n📂 Loading model from: {os.path.abspath(model_path)}")
@@ -117,13 +149,13 @@ try:
     print(f"\n✅✅✅ SUCCESS! Model and tokenizer loaded!")
     print(f"     Model shape: {model.input_shape}")
     print(f"     Vocab size: {len(tokenizer.word_index)} words")
-    print("="*60 + "\n")
+    print("="*70 + "\n")
     
 except Exception as e:
     print(f"\n❌❌❌ ERROR LOADING MODEL/TOKENIZER: {e}")
     import traceback
     traceback.print_exc()
-    print("="*60 + "\n")
+    print("="*70 + "\n")
     model = None
     tokenizer = None
 

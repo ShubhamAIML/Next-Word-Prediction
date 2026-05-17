@@ -2,27 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install git and git-lfs
-RUN apt-get update && apt-get install -y git git-lfs curl && rm -rf /var/lib/apt/lists/*
-
-# Initialize git-lfs
-RUN git lfs install --system
-
-# Copy all files from build context
+# Copy application files
 COPY app.py .
-COPY next_word_lstm_model.h5 .
-COPY tokenizer.pkl .
-COPY .gitattributes .
 COPY templates/ templates/
 COPY static/ static/
 COPY Dataset/ Dataset/
-
-# Debug: Check file sizes
-RUN echo "=== Checking file sizes ===" && \
-    ls -lh next_word_lstm_model.h5 tokenizer.pkl && \
-    echo "=== Checking if files are LFS pointers ===" && \
-    head -c 50 next_word_lstm_model.h5 && echo && \
-    head -c 50 tokenizer.pkl && echo
 
 # Install Python dependencies
 RUN pip install --no-cache-dir \
@@ -35,8 +19,8 @@ RUN pip install --no-cache-dir \
 EXPOSE 5000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" || exit 1
+HEALTHCHECK --interval=30s --timeout=30s --start-period=120s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=10)" || exit 1
 
-# Run gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "120", "app:app"]
+# Run gunicorn (model files will be auto-downloaded on first start)
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "180", "app:app"]
