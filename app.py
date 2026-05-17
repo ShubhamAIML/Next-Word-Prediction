@@ -74,14 +74,20 @@ def ensure_model_files():
         print(f"   File exists: {size / (1024*1024):.2f} MB")
         
         if is_lfs_pointer(model_path):
-            print(f"   ⚠️  Is LFS pointer - downloading actual file...")
+            print(f"   ⚠️  Is LFS pointer - trying to download actual file...")
             os.remove(model_path)
-            download_from_huggingface('ShubhamAIML/Next-Word-Prediction', model_path, model_path)
+            # Try HuggingFace
+            if not download_from_huggingface('ShubhamAIML/Next-Word-Prediction', model_path, model_path):
+                print(f"   ⚠️  HuggingFace download failed, will use LFS pointer")
+                # Restore from git
+                os.system('git restore next_word_lstm_model.h5 2>/dev/null || true')
         else:
             print(f"   ✅ Is actual file (not LFS pointer)")
     else:
-        print(f"   ❌ File missing - downloading...")
-        download_from_huggingface('ShubhamAIML/Next-Word-Prediction', model_path, model_path)
+        print(f"   ❌ File missing - trying HuggingFace...")
+        if not download_from_huggingface('ShubhamAIML/Next-Word-Prediction', model_path, model_path):
+            print(f"   ⚠️  Download failed - will try local git version")
+            os.system('git restore next_word_lstm_model.h5 2>/dev/null || true')
     
     # Check tokenizer file
     print(f"\n📂 Checking {tokenizer_path}...")
@@ -90,14 +96,20 @@ def ensure_model_files():
         print(f"   File exists: {size / 1024:.2f} KB")
         
         if is_lfs_pointer(tokenizer_path):
-            print(f"   ⚠️  Is LFS pointer - downloading actual file...")
+            print(f"   ⚠️  Is LFS pointer - trying to download actual file...")
             os.remove(tokenizer_path)
-            download_from_huggingface('ShubhamAIML/Next-Word-Prediction', tokenizer_path, tokenizer_path)
+            # Try HuggingFace
+            if not download_from_huggingface('ShubhamAIML/Next-Word-Prediction', tokenizer_path, tokenizer_path):
+                print(f"   ⚠️  HuggingFace download failed, will use LFS pointer")
+                # Restore from git
+                os.system('git restore tokenizer.pkl 2>/dev/null || true')
         else:
             print(f"   ✅ Is actual file (not LFS pointer)")
     else:
-        print(f"   ❌ File missing - downloading...")
-        download_from_huggingface('ShubhamAIML/Next-Word-Prediction', tokenizer_path, tokenizer_path)
+        print(f"   ❌ File missing - trying HuggingFace...")
+        if not download_from_huggingface('ShubhamAIML/Next-Word-Prediction', tokenizer_path, tokenizer_path):
+            print(f"   ⚠️  Download failed - will try local git version")
+            os.system('git restore tokenizer.pkl 2>/dev/null || true')
     
     print("\n" + "="*70)
 
