@@ -17,11 +17,25 @@ sequence_len = 50
 # Get port from environment variable (Render requirement)
 port = int(os.environ.get('PORT', 5000))
 
+# Get the app directory for proper file loading
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(APP_DIR, 'next_word_lstm_model.h5')
+TOKENIZER_PATH = os.path.join(APP_DIR, 'tokenizer.pkl')
+
+print(f"🔍 App Directory: {APP_DIR}")
+print(f"🔍 Model Path: {MODEL_PATH} - Exists: {os.path.exists(MODEL_PATH)}")
+print(f"🔍 Tokenizer Path: {TOKENIZER_PATH} - Exists: {os.path.exists(TOKENIZER_PATH)}")
+
 # Load model and tokenizer with vocab limit
 try:
-    model = tf.keras.models.load_model('next_word_lstm_model.h5')
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
+    if not os.path.exists(TOKENIZER_PATH):
+        raise FileNotFoundError(f"Tokenizer file not found at {TOKENIZER_PATH}")
     
-    with open('tokenizer.pkl', 'rb') as handle:
+    model = tf.keras.models.load_model(MODEL_PATH)
+    
+    with open(TOKENIZER_PATH, 'rb') as handle:
         tokenizer = pickle.load(handle)
     
     # Limit vocabulary to top 40K most frequent words
@@ -46,12 +60,21 @@ try:
         
         print(f"Vocabulary limited to {len(tokenizer.word_index)} words")
     
-    print(f"Model and tokenizer loaded successfully!")
-    print(f"Final vocabulary size: {len(tokenizer.word_index)} words")
-    print(f"Model input shape: {model.input_shape}")
+    print(f"✅ Model and tokenizer loaded successfully!")
+    print(f"✅ Final vocabulary size: {len(tokenizer.word_index)} words")
+    print(f"✅ Model input shape: {model.input_shape}")
     
+except FileNotFoundError as e:
+    print(f"❌ FILE NOT FOUND ERROR: {e}")
+    print(f"❌ Make sure next_word_lstm_model.h5 and tokenizer.pkl are in the root directory!")
+    print(f"❌ App Directory: {APP_DIR}")
+    print(f"❌ Files in directory: {os.listdir(APP_DIR)}")
+    model = None
+    tokenizer = None
 except Exception as e:
-    print(f"Error loading model or tokenizer: {e}")
+    print(f"❌ ERROR loading model or tokenizer: {e}")
+    import traceback
+    traceback.print_exc()
     model = None
     tokenizer = None
 
@@ -125,6 +148,15 @@ def get_top_predictions(probabilities, tokenizer, top_k=8):
                 })
     
     return predictions
+
+@app.route('/debug')
+def debug():
+    """Debug page to check model and tokenizer status."""
+    return render_template('debug.html', 
+                         model_loaded=model is not None,
+                         tokenizer_loaded=tokenizer is not None,
+                         vocab_size=len(tokenizer.word_index) if tokenizer else 0,
+                         app_dir=APP_DIR)
 
 @app.route('/')
 def home():
