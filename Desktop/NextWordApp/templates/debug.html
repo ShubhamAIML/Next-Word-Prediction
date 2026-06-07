@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>AI Word Predictor - Debug</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #0d1117;
+      color: #e6edf3;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    header {
+      margin-bottom: 30px;
+      border-bottom: 2px solid #30363d;
+      padding-bottom: 20px;
+    }
+    h1 { font-size: 2em; margin-bottom: 10px; }
+    .subtitle { color: #8b949e; font-size: 0.9em; }
+    .status-grid {
+      display: grid;
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+    .status-card {
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+      background: #161b22;
+    }
+    .status-label {
+      font-weight: bold;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      font-size: 0.85em;
+      letter-spacing: 1px;
+    }
+    .status-value {
+      font-size: 1.3em;
+      font-weight: bold;
+      margin-top: 8px;
+    }
+    .status-ok {
+      color: #3fb950;
+      border-left: 4px solid #3fb950;
+    }
+    .status-error {
+      color: #f85149;
+      border-left: 4px solid #f85149;
+    }
+    .info-text {
+      color: #8b949e;
+      font-size: 0.9em;
+      margin-top: 10px;
+    }
+    .action-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: bold;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.3s;
+    }
+    .btn-primary {
+      background: #238636;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #2ea043;
+    }
+    .btn-secondary {
+      background: #30363d;
+      color: #e6edf3;
+    }
+    .btn-secondary:hover {
+      background: #484f58;
+    }
+    a { color: inherit; text-decoration: none; }
+    code {
+      background: #0d1117;
+      padding: 2px 6px;
+      border-radius: 3px;
+      border: 1px solid #30363d;
+    }
+    .test-section {
+      margin-top: 30px;
+      padding: 20px;
+      background: #161b22;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+    }
+    input {
+      padding: 10px;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: 'JetBrains Mono', monospace;
+      width: 100%;
+      margin: 10px 0;
+    }
+    #test-result {
+      margin-top: 15px;
+      padding: 15px;
+      border-radius: 6px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      display: none;
+    }
+    .result-ok { border-left: 4px solid #3fb950; color: #3fb950; }
+    .result-error { border-left: 4px solid #f85149; color: #f85149; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🤖 AI Word Predictor - Debug Panel</h1>
+      <p class="subtitle">Deployment Status & Health Check</p>
+    </header>
+
+    <div class="status-grid">
+      <div class="status-card {% if model_loaded %}status-ok{% else %}status-error{% endif %}">
+        <div class="status-label">📦 Model Status</div>
+        <div class="status-value">{% if model_loaded %}✅ LOADED{% else %}❌ NOT LOADED{% endif %}</div>
+        <div class="info-text">
+          {% if model_loaded %}
+            Model file successfully loaded
+          {% else %}
+            Model file (next_word_lstm_model.h5) not found. Please ensure it's deployed.
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="status-card {% if tokenizer_loaded %}status-ok{% else %}status-error{% endif %}">
+        <div class="status-label">🔤 Tokenizer Status</div>
+        <div class="status-value">{% if tokenizer_loaded %}✅ LOADED{% else %}❌ NOT LOADED{% endif %}</div>
+        <div class="info-text">
+          {% if tokenizer_loaded %}
+            Tokenizer file successfully loaded
+          {% else %}
+            Tokenizer file (tokenizer.pkl) not found. Please ensure it's deployed.
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="status-card {% if vocab_size > 0 %}status-ok{% else %}status-error{% endif %}">
+        <div class="status-label">📚 Vocabulary Size</div>
+        <div class="status-value">{{ vocab_size | default('N/A', true) }}</div>
+        <div class="info-text">
+          {% if vocab_size > 0 %}
+            Vocabulary loaded with {{ vocab_size }} words
+          {% else %}
+            Vocabulary not loaded
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="action-buttons">
+      <a href="/health" class="btn-primary">🏥 Health Check API</a>
+      <a href="/vocab_stats" class="btn-primary">📊 Vocab Stats</a>
+      <a href="/" class="btn-secondary">← Back to App</a>
+    </div>
+
+    {% if tokenizer_loaded and model_loaded %}
+    <div class="test-section">
+      <h3>🧪 Test Prediction</h3>
+      <p>Test if the prediction API is working:</p>
+      <input type="text" id="test-input" placeholder="Enter text (e.g., 'the quick brown')" value="the quick brown">
+      <button class="btn-primary" onclick="testPrediction()" style="width: auto;">Test Prediction</button>
+      <div id="test-result"></div>
+    </div>
+    {% endif %}
+
+    <div class="test-section" style="margin-top: 20px;">
+      <h3>📋 System Info</h3>
+      <code>App Directory: {{ app_dir }}</code><br>
+      <code>Model Loaded: {{ model_loaded }}</code><br>
+      <code>Tokenizer Loaded: {{ tokenizer_loaded }}</code><br>
+      <code>Vocabulary Size: {{ vocab_size }}</code>
+    </div>
+  </div>
+
+  <script>
+    async function testPrediction() {
+      const input = document.getElementById('test-input').value;
+      const resultDiv = document.getElementById('test-result');
+      
+      if (!input.trim()) {
+        resultDiv.innerHTML = '<div class="result-error">❌ Please enter some text</div>';
+        resultDiv.style.display = 'block';
+        return;
+      }
+
+      try {
+        const response = await fetch('/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: input })
+        });
+        const data = await response.json();
+        
+        if (data.error) {
+          resultDiv.innerHTML = `<div class="result-error">❌ Error: ${data.error}</div>`;
+        } else if (data.predictions && data.predictions.length > 0) {
+          resultDiv.innerHTML = `
+            <div class="result-ok">
+              ✅ Predictions Generated!<br>
+              <strong>Next Words:</strong> ${data.predictions.join(' | ')}<br>
+              <small>Vocab Size: ${data.vocab_size}, Input Words: ${data.processed_input_words}</small>
+            </div>
+          `;
+        } else {
+          resultDiv.innerHTML = '<div class="result-error">❌ No predictions generated</div>';
+        }
+        resultDiv.style.display = 'block';
+      } catch (err) {
+        resultDiv.innerHTML = `<div class="result-error">❌ Request failed: ${err.message}</div>`;
+        resultDiv.style.display = 'block';
+      }
+    }
+  </script>
+</body>
+</html>
